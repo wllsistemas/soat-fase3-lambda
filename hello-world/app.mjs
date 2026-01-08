@@ -1,0 +1,207 @@
+import { Pool } from 'pg'
+import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
+import dotenv from 'dotenv'
+
+dotenv.config()
+
+/**
+ *
+ * Event doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html#api-gateway-simple-proxy-for-lambda-input-format
+ * @param {Object} event - API Gateway Lambda Proxy Input Format
+ *
+ * Context doc: https://docs.aws.amazon.com/lambda/latest/dg/nodejs-prog-model-context.html
+ * @param {Object} context
+ *
+ * Return doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html
+ * @returns {Object} object - API Gateway Lambda Proxy Output Format
+ *
+ */
+
+/**
+ * @param {string} d O documento que sera validado
+ * @returns {boolean} true para documento valido, false para documento invalido
+*/
+export function ehDocumentoValido(d) {
+    if (!d) return false;
+
+    // Remove tudo que nao for numero
+    const cpf = String(d).replace(/\D/g, '');
+
+    //  Precisa ter exatamente 11 digitos
+    if (cpf.length !== 11) return false;
+
+    // Rejeita CPFs com todos os dígitos iguais
+    if (/^(\d)\1{10}$/.test(cpf)) return false;
+
+    // Validacao do primeiro digito verificador
+    let sum = 0;
+    for (let i = 0; i < 9; i++) {
+        sum += parseInt(cpf[i]) * (10 - i);
+    }
+
+    let firstDigit = (sum * 10) % 11;
+    if (firstDigit === 10) firstDigit = 0;
+
+    if (firstDigit !== parseInt(cpf[9])) return false;
+
+    // Validacao do segundo digito verificador
+    sum = 0;
+    for (let i = 0; i < 10; i++) {
+        sum += parseInt(cpf[i]) * (11 - i);
+    }
+
+    let secondDigit = (sum * 10) % 11;
+    if (secondDigit === 10) secondDigit = 0;
+
+    if (secondDigit !== parseInt(cpf[10])) return false;
+
+    // valido
+    return true;
+}
+
+export const lambdaHandler = async (event, context) => {
+    if (typeof event.body === undefined) {
+        return {
+            statusCode: 400,
+            body: {
+                err: true,
+                msg: 'Invalid request body'
+            }
+        };
+    }
+
+    const body = JSON.parse(event.body);
+
+    // valida o documento do cliente
+
+    if (body.act === 'ACT_VALIDATE_USER_DOCUMENT') {
+        let doc = body.data;
+
+        let valido = ehDocumentoValido(doc);
+
+        return {
+            statusCode: valido ? 200 : 400,
+            body: JSON.stringify({
+                err: valido ? false : true,
+                msg: valido ? 'status: validated' : 'status: invalid',
+                data: {
+                    doc
+                }
+            })
+        }
+    }
+
+    const pool = new Pool({
+        max: 20,
+
+        host: process.env.DB_HOST,
+        user: process.env.DB_USER,
+        port: process.env.DB_PORT,
+        password: process.env.DB_PASSWORD,
+        database: process.env.DB_NAME,
+    })
+
+    // consulta a existencia e o status do cliente na base de dados
+
+    if (body.act === 'ACT_VALIDATE_CUSTOMER_STATUS') {
+        let documentoCliente = body.data;
+
+        if (ehDocumentoValido(documentoCliente) === false) {
+            return {
+                statusCode: 400,
+                body: JSON.stringify({
+                    err: true,
+                    msg: 'invalid document'
+                })
+            }
+        }
+
+        const customer = await pool.query('SELECT uuid FROM clientes WHERE documento = $1 AND deletado_em IS NULL LIMIT 1', [documentoCliente.replace(/\D/g, '')])
+
+        if (customer?.rows?.length === 0) {
+            return {
+                statusCode: 404,
+                body: JSON.stringify({
+                    err: true,
+                    msg: 'customer not found'
+                })
+            }
+        }
+
+        return {
+            statusCode: 200,
+            body: JSON.stringify({
+                err: false,
+                msg: 'status: OK',
+                data: {
+                    uuid: customer.rows[0].uuid
+                }
+            })
+        }
+    }
+
+    // gera um token JWS para acessar os recursos da api de oficina mecanica
+
+    if (body.act === 'ACT_GENERATE_TOKEN') {
+        let email = body.data.email;
+        let password = body.data.password;
+
+        let customer = await pool.query('SELECT * FROM usuarios WHERE email = $1 AND deletado_em IS NULL LIMIT 1', [email])
+
+        if (customer?.rows?.length === 0) {
+            return {
+                statusCode: 400,
+                body: JSON.stringify({
+                    err: true,
+                    msg: 'invalid credentials'
+                })
+            }
+        }
+
+        customer = customer.rows[0]
+
+        if (bcrypt.compareSync(password, customer.senha) === false) {
+            return {
+                statusCode: 401,
+                body: JSON.stringify({
+                    err: true,
+                    msg: 'unauthorized'
+                })
+            }
+        }
+
+        const token = jwt.sign({
+            iss: 'http://localhost:9000',
+            aud: 'http://localhost:9000',
+            iat: Math.floor(Date.now() / 1000),
+            nbf: Math.floor(Date.now() / 1000),
+
+            exp: Math.floor(Date.now() / 1000) + (60 * 60 * 24), // 24h
+            sub: customer.uuid,
+            perf: customer.perfil,
+
+        }, process.env.JWT_SECRET)
+
+        return {
+            statusCode: 200,
+            body: JSON.stringify({
+                err: false,
+                msg: 'successfully generated token',
+                data: {
+                    token
+                }
+            })
+        }
+    }
+
+    let finalRes = {
+        statusCode: 200,
+        body: JSON.stringify({
+            err: true,
+            msg: 'invalid action'
+        })
+    };
+
+    return finalRes
+};
