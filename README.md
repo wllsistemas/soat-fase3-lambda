@@ -1,4 +1,4 @@
-# soatFun
+# soat Function Lambda
 
 Este projeto contém o código-fonte e os arquivos de suporte para uma aplicação _serverless_ que pode ser implantada com a CLI do SAM (Serverless Application Model Command Line Interface).
 
