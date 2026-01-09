@@ -10,7 +10,7 @@ Essa function faz as seguintes operações:
 
 # Como isso é feito?
 
-Para realizar uma das operações mencionadas anteriormente, uma chamada http `POST` para o seguinte endpoint deve ser feita:
+Para realizar uma das operações mencionadas anteriormente, uma chamada http `POST` para o seguinte endpoint deve ser feita: 
 
 `http://127.0.0.1:3000/handle`
 
