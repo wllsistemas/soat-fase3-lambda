@@ -1,9 +1,8 @@
-import { Pool } from 'pg'
-import bcrypt from 'bcryptjs'
-import jwt from 'jsonwebtoken'
 import dotenv from 'dotenv'
 
 dotenv.config()
+
+const API = process.env.API_URL
 
 /**
  *
@@ -73,7 +72,7 @@ export const lambdaHandler = async (event, context) => {
 
     const body = JSON.parse(event.body);
 
-    // valida o documento do cliente
+    // * valida o documento do cliente
 
     if (body.act === 'ACT_VALIDATE_USER_DOCUMENT') {
         let doc = body.data;
@@ -92,17 +91,7 @@ export const lambdaHandler = async (event, context) => {
         }
     }
 
-    const pool = new Pool({
-        max: 20,
-
-        host: process.env.DB_HOST,
-        user: process.env.DB_USER,
-        port: process.env.DB_PORT,
-        password: process.env.DB_PASSWORD,
-        database: process.env.DB_NAME,
-    })
-
-    // consulta a existencia e o status do cliente na base de dados
+    // * consulta a existencia e o status do cliente na base de dados
 
     if (body.act === 'ACT_VALIDATE_CUSTOMER_STATUS') {
         let documentoCliente = body.data;
@@ -117,81 +106,58 @@ export const lambdaHandler = async (event, context) => {
             }
         }
 
-        const customer = await pool.query('SELECT uuid FROM clientes WHERE documento = $1 AND deletado_em IS NULL LIMIT 1', [documentoCliente.replace(/\D/g, '')])
+        let response = await fetch(API.concat('/cliente/status?d=', documentoCliente.replace(/\D/g, '')))
 
-        if (customer?.rows?.length === 0) {
+        if (response.status !== 200) {
             return {
-                statusCode: 404,
+                statusCode: 200,
                 body: JSON.stringify({
                     err: true,
-                    msg: 'customer not found'
+                    msg: 'failed to validate customer status'
                 })
             }
         }
 
+        const resData = await response.json()
+
         return {
             statusCode: 200,
-            body: JSON.stringify({
-                err: false,
-                msg: 'status: OK',
-                data: {
-                    uuid: customer.rows[0].uuid
-                }
-            })
+            body: JSON.stringify(resData)
         }
     }
 
-    // gera um token JWS para acessar os recursos da api de oficina mecanica
+    // * gera um token JWS para acessar os recursos da api de oficina mecanica
 
     if (body.act === 'ACT_GENERATE_TOKEN') {
         let email = body.data.email;
         let password = body.data.password;
 
-        let customer = await pool.query('SELECT * FROM usuarios WHERE email = $1 AND deletado_em IS NULL LIMIT 1', [email])
+        let response = await fetch(API.concat('/auth/login'), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                email,
+                senha: password
+            }),
+        })
 
-        if (customer?.rows?.length === 0) {
+        if (response.status !== 200) {
             return {
-                statusCode: 400,
+                statusCode: 200,
                 body: JSON.stringify({
                     err: true,
-                    msg: 'invalid credentials'
+                    msg: 'failed to generate token'
                 })
             }
         }
 
-        customer = customer.rows[0]
-
-        if (bcrypt.compareSync(password, customer.senha) === false) {
-            return {
-                statusCode: 401,
-                body: JSON.stringify({
-                    err: true,
-                    msg: 'unauthorized'
-                })
-            }
-        }
-
-        const token = jwt.sign({
-            iss: 'http://localhost:9000',
-            aud: 'http://localhost:9000',
-            iat: Math.floor(Date.now() / 1000),
-            nbf: Math.floor(Date.now() / 1000),
-
-            exp: Math.floor(Date.now() / 1000) + (60 * 60 * 24), // 24h
-            sub: customer.uuid,
-            perf: customer.perfil,
-
-        }, process.env.JWT_SECRET)
+        const resData = await response.json()
 
         return {
             statusCode: 200,
-            body: JSON.stringify({
-                err: false,
-                msg: 'successfully generated token',
-                data: {
-                    token
-                }
-            })
+            body: JSON.stringify(resData)
         }
     }
 
