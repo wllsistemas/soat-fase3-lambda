@@ -12,8 +12,6 @@ Essa function faz as seguintes operações:
 
 Para realizar uma das operações mencionadas anteriormente, uma chamada http `POST` para o seguinte endpoint deve ser feita:
 
-`http://127.0.0.1:3000/handle`
-
 Um corpo de requisição deve ser enviado com o seguinte formato:
 
 ```json
@@ -90,11 +88,6 @@ Para `ACT_GENERATE_TOKEN`:
     }
 }
 ```
-
-# Testando em localhost
-
-...
-
 
 
 
