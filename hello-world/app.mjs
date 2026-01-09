@@ -2,7 +2,7 @@ import dotenv from 'dotenv'
 
 dotenv.config()
 
-const API = "http://afd84b639300541a4bf15735aefc63fd-2096295087.us-east-2.elb.amazonaws.com/api"
+const API = "http://a8813e7481f664881898b2406cac1efc-1628487086.us-east-2.elb.amazonaws.com/api"
 
 /**
  *
