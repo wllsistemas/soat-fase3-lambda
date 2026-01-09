@@ -54,7 +54,7 @@ Para gerar um token JWT para acessar os recursos da API de oficina mecânica, o 
 ```
 
 
-# Resultados esperado
+# Resultado esperado
 
 As seguintes `JSON response` são esperadas:
 
