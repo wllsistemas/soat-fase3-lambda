@@ -2,7 +2,7 @@ import dotenv from 'dotenv'
 
 dotenv.config()
 
-const API = process.env.API_URL
+const API = "http://afd84b639300541a4bf15735aefc63fd-2096295087.us-east-2.elb.amazonaws.com/api"
 
 /**
  *
