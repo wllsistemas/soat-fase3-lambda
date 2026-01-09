@@ -2,7 +2,7 @@
 
 Este projeto contém o código-fonte e os arquivos de suporte para uma aplicação _serverless_ que pode ser implantada com a CLI do SAM (Serverless Application Model Command Line Interface).
 
-Essa function faz as seguintes operações:
+Essa function faz as seguintes operações: 
 
 1. Verifica se um CPF é válido.
 2. Consulta o status de um cliente na base de dados.
